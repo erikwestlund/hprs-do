@@ -2,7 +2,7 @@ library(dplyr)
 library(ggplot2)
 library(EnvStats)
 
-# This code genarates a sample of people by race/ethnicity, roughly
+# This code generates a sample of people by race/ethnicity, roughly
 # proportionate to the US population. It then uses the characteristics of the
 # US to then generate realistic covariates for each person, starting from simulated
 # race/ethnicity. As a side note: we could start with basically any property
@@ -17,10 +17,10 @@ n <- 100000
 # Function to generate realistic values of key covariates, given race.
 # You can limit the max mental health visits visits allowed
 # Weight multiplier can be adjusted to increase/decrease the number of visits
-genPatientCovariates <- function(race_eth, weight_mulitiplier = 0.25, max_visits = 50) {
+genPatientCovariates <- function(race_eth, weight_mulitiplier = 0.25, max_visits = 200) {
   
   # 1 = M, 0 = Not M
-  gender <- sample(c(1,0), 1, prob = c(0.5, 0.5))
+  gender <- sample(c(1,0), 1, prob = c(0.39, 0.61))
   
   # For six categories in the data, roughly proportionate to US demography
   # 1 = older, 6 = younger
@@ -28,13 +28,13 @@ genPatientCovariates <- function(race_eth, weight_mulitiplier = 0.25, max_visits
   
   # Generate an income for a person based upon their race.
   income <- case_when(
-    race_eth == 1 ~ rnorm(1, 52000, 10000),
-    race_eth == 2 ~ rnorm(1, 62500, 12000),
-    race_eth == 3 ~ rnorm(1, 60000, 15000), # Guess
-    race_eth == 4 ~ rnorm(1, 84000, 20000),
-    race_eth == 5 ~ rnorm(1, 125000, 40000), # Rough from quick google
-    race_eth == 6 ~ rnorm(1, 109000, 30000),
-    race_eth == 7 ~ rnorm(1, 20000, 10000),
+    race_eth == 1 ~ rnorm(1, 52000, 10000), # Af Am
+    race_eth == 2 ~ rnorm(1, 62500, 12000), # Latine
+    race_eth == 3 ~ rnorm(1, 60000, 15000), # Middle Eastern
+    race_eth == 4 ~ rnorm(1, 84000, 20000), # White Other
+    race_eth == 5 ~ rnorm(1, 125000, 40000), # White Jewish
+    race_eth == 6 ~ rnorm(1, 109000, 30000), # Asian/Pac Isl
+    race_eth == 7 ~ rnorm(1, 20000, 10000),  # Native Am 
     # race_eth == 9 ~ NA,
   )
   
@@ -137,14 +137,14 @@ genPatientCovariates <- function(race_eth, weight_mulitiplier = 0.25, max_visits
 }
 
 race_eth <- sample(c(
-    rep(1, 13), # African American
-    rep(2, 19), # Hispanic
+    rep(1, 9), # African American
+    rep(2, 17), # Hispanic
     rep(3, 1),  # Middle Eastern 
-    rep(4, 58), # Caucasian-Other
-    rep(5, 2),  # Caucsaian-Jewish
-    rep(6, 6),  # Asian
-    rep(7, 1)  # Missing
-    # rep(9, 10)   # Native American/Pacific Islander
+    rep(4, 65), # Caucasian-Other
+    rep(5, 3),  # Caucsaian-Jewish
+    rep(6, 3),  # Asian
+    rep(7, 1)   # Native American/Pacific Islander
+    # rep(9, 10)  
   ), n, replace = TRUE)
 
 # This generates a data frame of N number of

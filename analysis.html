@@ -166,24 +166,24 @@ lm(formula = glm(AMVSum ~ factor(genderbinary), family = "poisson",
     data = data))
 
 Residuals:
-   Min     1Q Median     3Q    Max 
--3.031 -2.946 -1.946 -0.031 46.054 
+    Min      1Q  Median      3Q     Max 
+ -4.453  -4.369  -3.369  -1.453 194.631 
 
 Coefficients:
                       Estimate Std. Error t value Pr(&gt;|t|)    
-(Intercept)            3.03108    0.02656 114.110   &lt;2e-16 ***
-factor(genderbinary)1 -0.08463    0.03754  -2.254   0.0242 *  
+(Intercept)            4.45297    0.05383  82.730   &lt;2e-16 ***
+factor(genderbinary)1 -0.08381    0.08618  -0.972    0.331    
 ---
 Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-Residual standard error: 5.936 on 99998 degrees of freedom
-Multiple R-squared:  5.082e-05, Adjusted R-squared:  4.082e-05 
-F-statistic: 5.082 on 1 and 99998 DF,  p-value: 0.02418</code></pre>
+Residual standard error: 13.29 on 99998 degrees of freedom
+Multiple R-squared:  9.458e-06, Adjusted R-squared:  -5.425e-07 
+F-statistic: 0.9457 on 1 and 99998 DF,  p-value: 0.3308</code></pre>
 </div>
 <div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">exp</span>(model1<span class="sc">$</span>coefficients)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>          (Intercept) factor(genderbinary)1 
-            20.719529              0.918849 </code></pre>
+           85.8820081             0.9196097 </code></pre>
 </div>
 </div>
 <p>Exponentiated gender coefficient (incident rate ratio) should be about 1/1.1 = 0.91.</p>
