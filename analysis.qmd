@@ -1,6 +1,6 @@
 ---
 title: "Sim Data Analysis"
-format: html
+format: pdf
 ---
 
 
