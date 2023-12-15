@@ -1,33 +1,32 @@
-library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(EnvStats)
 
-# Start by generating a sample of people by race/ethnicity, roughly
-# proportionate to the US population. We will use the characteristics of the
-# US to then generate realistic covariates for each person, starting from
-# Race/Eth. As a side note: we could start with basically any property
+# This code genarates a sample of people by race/ethnicity, roughly
+# proportionate to the US population. It then uses the characteristics of the
+# US to then generate realistic covariates for each person, starting from simulated
+# race/ethnicity. As a side note: we could start with basically any property
 # and work from there with similar results were the data good.
-n <- 10000
 
-d <- tibble(
-  race_eth = sample(c(
-    rep(1, 13), # African American
-    rep(2, 19), # Hispanic
-    rep(3, 1),  # Middle Eastern 
-    rep(4, 58), # Caucasian-Other
-    rep(5, 2),  # Caucsaian-Jewish
-    rep(6, 6),  # Asian
-    rep(7, 1)  # Missing
-    # rep(9, 10)   # Native American/Pacific Islander
-  ), n, replace = TRUE)
-) 
+# Set seed to make this deterministic.
+set.seed(123)
 
+# Pick your sample size. 
+n <- 100000
 
-# For each person, generate a set of realistic values.
-genPatientCovariates <- function(race_eth) {
+# Function to generate realistic values of key covariates, given race.
+# You can limit the max mental health visits visits allowed
+# Weight multiplier can be adjusted to increase/decrease the number of visits
+genPatientCovariates <- function(race_eth, weight_mulitiplier = 0.25, max_visits = 50) {
   
-  race_eth <- sample(d$race_eth, 1)
+  # 1 = M, 0 = Not M
   gender <- sample(c(1,0), 1, prob = c(0.5, 0.5))
-  age_cat <- sample(c(1,1,2,2,2,3,3,3,4,4,4,5,5,5,6,6,6), 1)
   
+  # For six categories in the data, roughly proportionate to US demography
+  # 1 = older, 6 = younger
+  age_cat <- sample(c(rep(1, 4), rep(2, 4), rep(3, 5), rep(4, 4), rep(5, 3), rep(6,4)), 1)
+  
+  # Generate an income for a person based upon their race.
   income <- case_when(
     race_eth == 1 ~ rnorm(1, 52000, 10000),
     race_eth == 2 ~ rnorm(1, 62500, 12000),
@@ -39,7 +38,10 @@ genPatientCovariates <- function(race_eth) {
     # race_eth == 9 ~ NA,
   )
   
+  # Make sure it's positive or 0.
   income <- round(ifelse(income < 0, 0, income), -3)
+  
+  # Categorize as in the data.
   income_cat <- case_when(
     income <= 25000 ~ 1,
     income <= 50000 ~ 2,
@@ -50,6 +52,8 @@ genPatientCovariates <- function(race_eth) {
     income > 150000 ~ 7,
   )  
 
+  # Generate categorical education values roughly proportionate to educational
+  # attainment by race/ethnicity in the US.
   education <- case_when(
     race_eth == 1 ~ sample(c(rep(1,10), rep(2,60), rep(3,15), rep(4,10)), 1, replace = TRUE),
     race_eth == 2 ~ sample(c(rep(1,20), rep(2,65), rep(3,10), rep(4,5)), 1, replace = TRUE),
@@ -61,17 +65,20 @@ genPatientCovariates <- function(race_eth) {
     # race_eth == 9 ~ NA, # Less than HS
   )
 
-  # Generate a random number of visits for each person. We want to make this a function of 
-  # the person's age, income, and education. But we also want it realistically distributed,
+  # Generate a random number of total mental health visits for each person. We want to make this a function of 
+  # the person's age, race, income, and education. But we also want it realistically distributed,
   # using a Poisson distribution. We will use the values of age, gender, race, and income
   # to generate a weight, and then use that mean to generate a random number using rpois.
+  
+  # These can be tweaked to change the distribution of visits. Higher weights yield
+  # higher visit counts.
   age_weight <- case_when(
     age_cat == 1 ~ 0.5, # Older
     age_cat == 2 ~ 0.75,
-    age_cat == 3 ~ 0.9,
-    age_cat == 4 ~ 1,
-    age_cat == 5 ~ 1.1,
-    age_cat == 6 ~ 0.5, # Younger
+    age_cat == 3 ~ 1.25,
+    age_cat == 4 ~ 1.5,
+    age_cat == 5 ~ 2,
+    age_cat == 6 ~ 1.5, # Younger
   )
   
   gender_weight <- case_when(
@@ -80,7 +87,7 @@ genPatientCovariates <- function(race_eth) {
   )
 
   income_weight <- case_when(
-    income_cat == 1 ~ 0.5, # < 25k
+    income_cat == 1 ~ 0.2, # < 25k
     income_cat == 2 ~ 0.75,
     income_cat == 3 ~ 0.9,
     income_cat == 4 ~ 1,
@@ -90,7 +97,7 @@ genPatientCovariates <- function(race_eth) {
   )
   
   race_weight <- case_when(
-    race_eth == 1 ~ 0.5, 
+    race_eth == 1 ~ 0.3, 
     race_eth == 2 ~ 0.5,
     race_eth == 3 ~ 0.4,
     race_eth == 4 ~ 1,
@@ -101,8 +108,22 @@ genPatientCovariates <- function(race_eth) {
   
   total_weight <- age_weight + gender_weight + income_weight + race_weight
   
-  total_mental_health_visits <- rpois(1, 0.5 * total_weight)
+  # 0.75 is a multiplier. Increase or decrease to alter the mean of the distribution.
+  # total_mental_health_visits <- rpois(1, 0.75 * total_weight)
+  total_mental_health_visits <- round(rpareto(1, weight_mulitiplier *total_weight))
   
+  valid <- FALSE
+  
+  while(!valid) {
+    if(total_mental_health_visits > max_visits) {
+      total_mental_health_visits <- round(rpareto(1, weight_mulitiplier *total_weight))
+    } else {
+      valid <- TRUE
+    }
+  }
+  
+  total_mental_health_visits <- total_mental_health_visits - 1
+
   data = tibble(
     "gender" = gender,
     "race_eth" = race_eth,
@@ -115,9 +136,22 @@ genPatientCovariates <- function(race_eth) {
   return(data)
 }
 
-data <- lapply(d$race_eth, genPatientCovariates) |> 
+race_eth <- sample(c(
+    rep(1, 13), # African American
+    rep(2, 19), # Hispanic
+    rep(3, 1),  # Middle Eastern 
+    rep(4, 58), # Caucasian-Other
+    rep(5, 2),  # Caucsaian-Jewish
+    rep(6, 6),  # Asian
+    rep(7, 1)  # Missing
+    # rep(9, 10)   # Native American/Pacific Islander
+  ), n, replace = TRUE)
+
+# This generates a data frame of N number of
+data <- lapply(race_eth, genPatientCovariates) |> 
   bind_rows() 
 
+# This renames the data frame to match the names in the SQL.
 renamed_data <- tibble(
   raceth = data$race_eth,
   agecat = data$age_cat,
@@ -127,82 +161,5 @@ renamed_data <- tibble(
   AMVSum = data$total_mental_health_visits
 )
 
-summary(data$total_mental_health_visits)
-
-write.csv(renamed_data, "sim_data.csv", row.names = FALSE, col.names = TRUE)
-
-# Questions:
-# Missing data - strategy?
-# Modeling - Poisson model?
-
-
-# Notes from reading SQL:
-# Visits after 2/1/2019
-
-# Notes on SQL.
-#   time = month_service + n*12 derived from "year service" -- this really measures in units of years
-#   Would make sure to report/interpret appropriately.
-
-# Measures:
-
-# AMV: Any Mental Health Visit
-#   1 = Therapy
-#   2 = Psychiatry
-#   3 = Testing
-#   4 = Neuropsych
-
-# PCMHV: Precovid mental health visit, dereived from AMV and service_from_date_1
-#   Any visit before 3/1/2020 
-#     Because of subset of visits noted above (>2/1/2019), does this mean it's capped between 2/1/2019 and 3/1/2020?
-# 
-# Mean_AMVSUM - generated from average of AMVSum, which I'm assuming is a sum of all mental health visits. Must make sure this query is on a
-# dataset where 1 record = 1 person
-#
-# raceth  Not sure what categories these are.   Do these all come from EthnicIQ_V2?
-#   1   African American
-#   2   Hispanic
-#   3   Middle Eastern
-#   4   Caucasian-Other
-#   5   Caucsaian-Jewish
-#   6   Asian
-#   7   Native American/Pacific Islander
-#   9   Comes from 999 -- Do we know why these are not in the other categories? Non response vs "Other" for example?
-#
-#  Note, on the SQL code, it looks like this updates raceth directly, which is destructive of the source measure. Might not be a big deal, but it's
-#  nice to always generate a new column/varaible so you can compare the two for validation.
-#
-# Income  -- Does this come from IncomeEQ_plus_V3? Is this individual or household income?
-#   1 <= 24,999
-#   2 <= 49,999
-#   3 <= 74,999
-#   4 <= 99,999
-#   5 <= 124,999
-#   6 <= 149,999
-#   7 >= 150,000
-#   
-#   9     Comes from 9999 derived from else statement. Do we know why missing?
-
-# Education -- Does this come from AIQ_educationIQ_V2?
-#   1   Less than HS
-#   2   HS
-#   3   BA (Is some college HS?)
-#   4   Graduate
-#   999   Again, do we know missingness mechanisms?
-
-# Age -- I'm assuming these categories in the SQL code are already generated to mean "less than" otherwise it would only pick cases with exactly that YOB.
-#   1   YOB = 1957
-#   2   YOB = 1967
-#   3   YOB = 1977
-#   4   YOB = 1987
-#   5   YOB = 1997
-#   6   YOB = 2004
-#   999 other
-
-# COVID == 0, 1, or 2 -- what do these mean?
-# genderbinary = 1 for M (assuming male in the data), 0 for not male
-# 
-# Number of mental health visits per month per patient
-#
-# The descriptives are groued by TIMEN. What is TIMEN? Assumming it splits the data in a sensible way.
-
+write.csv(renamed_data, "sim_data.csv", row.names = FALSE)
 
