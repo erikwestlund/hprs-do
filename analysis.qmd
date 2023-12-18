@@ -1,6 +1,6 @@
 ---
 title: "Sim Data Analysis"
-format: html
+format: pdf
 ---
 
 
@@ -68,4 +68,6 @@ We also have a good reason to believe there is overdispersion, so we will use a 
 model1_nb <- zeroinfl(AMVSum ~ factor(genderbinary) | factor(genderbinary), data=data, dist="negbin")
 
 summary(model1_nb)
+
+
 ```
