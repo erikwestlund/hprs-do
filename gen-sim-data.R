@@ -12,29 +12,49 @@ library(EnvStats)
 set.seed(123)
 
 # Pick your sample size. 
-n <- 100000
+n <- 10000
 
-# Function to generate realistic values of key covariates, given race.
-# You can limit the max mental health visits visits allowed
-# Weight multiplier can be adjusted to increase/decrease the number of visits
-genPatientCovariates <- function(race_eth, weight_mulitiplier = 0.25, max_visits = 200) {
+# Function to generate realistic values of key covariates, given race, for one person.
+# race_eth = race/ethnicity code of person
+#
+# weight_divider = parameter to arbitrarily scale weight up or down. use to get rough
+# proportion of visits right
+#
+# weight_multiplier = parameter to scale lambda of poisson distribution for weight
+#
+# visit_multiplier = parameter to scale up visit counts from poisson
+#
+# max_visits = a max number of visits. Currently set to about 2 visits per week.
+
+# Note about `sample` function probability weights: while the parameter is named "prob,"
+# they are actually weights that get normalized, so no need to make them 
+# probabilities that sum exactly to 1.
+genPatientCovariates <- function(
+    race_eth,
+    weight_divider = 4, 
+    weight_multiplier = 1,
+    visit_multiplier = 34,
+    max_visits = 200
+  ) {
   
   # 1 = M, 0 = Not M
   gender <- sample(c(1,0), 1, prob = c(0.39, 0.61))
   
   # For six categories in the data, roughly proportionate to US demography
-  # 1 = older, 6 = younger
-  age_cat <- sample(c(rep(1, 4), rep(2, 4), rep(3, 5), rep(4, 4), rep(5, 3), rep(6,4)), 1)
-  
+  # 1 = 65+, 2 = 55-64, 3 = 46-54, 4 = 36-45, 5 = 26-35, 6 = 18-25
+  age_cat <- sample(1:6, 1, replace = TRUE, prob = c(27, 17, 16, 19, 18, 3))
+
   # Generate an income for a person based upon their race.
+  # Use a log-normal distribution to generate skew, then multiply to get
+  # a reasonable range of incomes for each group.
   income <- case_when(
-    race_eth == 1 ~ rnorm(1, 52000, 10000), # Af Am
-    race_eth == 2 ~ rnorm(1, 62500, 12000), # Latine
-    race_eth == 3 ~ rnorm(1, 60000, 15000), # Middle Eastern
-    race_eth == 4 ~ rnorm(1, 84000, 20000), # White Other
-    race_eth == 5 ~ rnorm(1, 125000, 40000), # White Jewish
-    race_eth == 6 ~ rnorm(1, 109000, 30000), # Asian/Pac Isl
-    race_eth == 7 ~ rnorm(1, 20000, 10000),  # Native Am 
+    race_eth == 1 ~ rlnorm(1, 4, 0.5) * 750, # Af Am
+    race_eth == 2 ~ rlnorm(1, 4.25, 0.5)* 750, # Latine
+    race_eth == 3 ~ rlnorm(1, 4.2, 0.5) * 750, # Middle Eastern
+    race_eth == 4 ~ rlnorm(1, 4.75, 0.5) * 750, # White Other
+    race_eth == 5 ~ rlnorm(1, 5, 0.5) * 750, # White Jewish
+    race_eth == 6 ~ rlnorm(1, 4.9, 0.5) * 750, # Asian/Pac Isl
+    race_eth == 7 ~ rlnorm(1, 3.75, 0.5) * 750,  # Native Am 
     # race_eth == 9 ~ NA,
   )
   
@@ -55,23 +75,20 @@ genPatientCovariates <- function(race_eth, weight_mulitiplier = 0.25, max_visits
   # Generate categorical education values roughly proportionate to educational
   # attainment by race/ethnicity in the US.
   education <- case_when(
-    race_eth == 1 ~ sample(c(rep(1,10), rep(2,60), rep(3,15), rep(4,10)), 1, replace = TRUE),
-    race_eth == 2 ~ sample(c(rep(1,20), rep(2,65), rep(3,10), rep(4,5)), 1, replace = TRUE),
-    race_eth == 3 ~ sample(c(rep(1,10), rep(2,60), rep(3,15), rep(4,10)), 1, replace = TRUE),
-    race_eth == 4 ~ sample(c(rep(1,5), rep(2,50), rep(3,30), rep(4,15)), 1, replace = TRUE),
-    race_eth == 5 ~ sample(c(rep(1,5), rep(2,25), rep(3,50), rep(4,20)), 1, replace = TRUE),
-    race_eth == 6 ~ sample(c(rep(1,10), rep(2,30), rep(3,40), rep(4,20)), 1, replace = TRUE),
-    race_eth == 7 ~ sample(c(rep(1,10), rep(2,65), rep(3,20), rep(4,5)), 1, replace = TRUE),
+    race_eth == 1 ~ sample(1:4, 1, replace = TRUE, prob=c(15, 65, 15, 5)),
+    race_eth == 2 ~ sample(1:4, 1, replace = TRUE, prob=c(15, 65, 15, 5)),
+    race_eth == 3 ~ sample(1:4, 1, replace = TRUE, prob=c(15, 65, 15, 5)),
+    race_eth == 4 ~ sample(1:4, 1, replace = TRUE, prob=c(5, 40, 40, 15)),
+    race_eth == 5 ~ sample(1:4, 1, replace = TRUE, prob=c(5, 20, 50, 25)),
+    race_eth == 6 ~ sample(1:4, 1, replace = TRUE, prob=c(5, 30, 45, 20)),
+    race_eth == 7 ~ sample(1:4, 1, replace = TRUE, prob=c(20, 30, 15, 5))
     # race_eth == 9 ~ NA, # Less than HS
   )
 
   # Generate a random number of total mental health visits for each person. We want to make this a function of 
-  # the person's age, race, income, and education. But we also want it realistically distributed,
-  # using a Poisson distribution. We will use the values of age, gender, race, and income
-  # to generate a weight, and then use that mean to generate a random number using rpois.
-  
-  # These can be tweaked to change the distribution of visits. Higher weights yield
-  # higher visit counts.
+  # the person's age, race, income, and education. But we also want it realistically distributed, so we will
+  # sample from a poisson distribution, using weights from those factors. To get our DV, we need to divide by 34,
+  # the total number of months of data.
   age_weight <- case_when(
     age_cat == 1 ~ 0.5, # Older
     age_cat == 2 ~ 0.75,
@@ -83,73 +100,93 @@ genPatientCovariates <- function(race_eth, weight_mulitiplier = 0.25, max_visits
   
   gender_weight <- case_when(
     gender == 1 ~ 1, 
-    gender == 0 ~ 1.1,
+    gender == 0 ~ 1.3,
   )
 
   income_weight <- case_when(
-    income_cat == 1 ~ 0.2, # < 25k
-    income_cat == 2 ~ 0.75,
-    income_cat == 3 ~ 0.9,
+    income_cat == 1 ~ 0.25, # < 25k
+    income_cat == 2 ~ 0.5,
+    income_cat == 3 ~ 0.75,
     income_cat == 4 ~ 1,
     income_cat == 5 ~ 1.25,
-    income_cat == 6 ~ 1.4,
-    income_cat == 7 ~ 1.5, # > 150k
+    income_cat == 6 ~ 1.5,
+    income_cat == 7 ~ 1.75, # > 150k
   )
   
   race_weight <- case_when(
     race_eth == 1 ~ 0.3, 
     race_eth == 2 ~ 0.5,
     race_eth == 3 ~ 0.4,
-    race_eth == 4 ~ 1,
-    race_eth == 5 ~ 1.1,
+    race_eth == 4 ~ 1.5,
+    race_eth == 5 ~ 1.25,
     race_eth == 6 ~ 0.75,
     race_eth == 7 ~ 0.5, 
   )
   
-  total_weight <- age_weight + gender_weight + income_weight + race_weight
+  # Divide by 2 to get a lambda around 1.  This generates a number of 0s, most between 1-2 visits a month and a handful with many
+  total_weight <- (age_weight + gender_weight + income_weight + race_weight)
   
-  # 0.75 is a multiplier. Increase or decrease to alter the mean of the distribution.
-  # total_mental_health_visits <- rpois(1, 0.75 * total_weight)
-  total_mental_health_visits <- round(rpareto(1, weight_mulitiplier *total_weight))
+  # Let's do a simulation where we draw an initial probability of ever attending, aiming at about 2/3 of people attending
+  # Then lets simulate by month
   
-  valid <- FALSE
+  ever_attend_p <- 2/3
   
-  while(!valid) {
-    if(total_mental_health_visits > max_visits) {
-      total_mental_health_visits <- round(rpareto(1, weight_mulitiplier *total_weight))
-    } else {
-      valid <- TRUE
-    }
+  # high weights should be more likely, low weights should be less likely, so let's scale the p appropriately
+  # divide by four because average weight should be around 4
+  ever_attend_p <- ever_attend_p * (total_weight/weight_divider)
+  ever_attend_p <- ifelse(ever_attend_p > 1, 1, ever_attend_p)
+  ever_attend_p <- ifelse(ever_attend_p < 0, 0, ever_attend_p)
+  
+  # sim attendance
+  ever_attended <- rbinom(1, 1, ever_attend_p)
+
+  # sim visits
+  if(ever_attended == 1){
+    
+    # sim total visits
+    total_mental_health_visits <- rpois(1, total_weight * weight_multiplier) * visit_multiplier
+    
+  } else {
+    total_mental_health_visits <- 0
   }
   
-  total_mental_health_visits <- total_mental_health_visits - 1
-
+  average_visits_per_month <- total_mental_health_visits/34
+  
+  
   data = tibble(
     "gender" = gender,
     "race_eth" = race_eth,
     "age_cat" = age_cat,
     "income_cat" = income_cat,
     "education" = education,
+    "ever_attended" = ever_attended,
+    "ever_attend_p" = ever_attend_p,
+    "total_weight" = total_weight,
+    "average_visits_per_month" = average_visits_per_month,
     "total_mental_health_visits" = total_mental_health_visits
   )
   
   return(data)
 }
 
-race_eth <- sample(c(
-    rep(1, 9), # African American
-    rep(2, 17), # Hispanic
-    rep(3, 1),  # Middle Eastern 
-    rep(4, 65), # Caucasian-Other
-    rep(5, 3),  # Caucsaian-Jewish
-    rep(6, 3),  # Asian
-    rep(7, 1)   # Native American/Pacific Islander
-    # rep(9, 10)  
-  ), n, replace = TRUE)
+race_eth <- sample(1:7, n, replace = TRUE, prob=c(
+ 9,   # African American
+ 17,  # Hispanic
+ 1,   # Middle Eastern 
+ 65,  # Caucasian-Other
+ 3,   # Caucasian-Jewish
+ 3,   # Asian
+ 1    # Native American/Pacific Islander
+))
 
 # This generates a data frame of N number of
-data <- lapply(race_eth, genPatientCovariates) |> 
+data <- lapply(race_eth, genPatientCovariates, weight_divider = 4.25, visit_multiplier = 25) |> 
   bind_rows() 
+
+
+summary((data |> dplyr::filter(ever_attended == 1) |> dplyr::select(total_mental_health_visits))$total_mental_health_visits)/34
+table(data$total_mental_health_visits)
+hist(data$total_mental_health_visits)
 
 # This renames the data frame to match the names in the SQL.
 renamed_data <- tibble(
@@ -158,7 +195,8 @@ renamed_data <- tibble(
   incomecat = data$income_cat,
   educationcat = data$education,
   genderbinary = data$gender,
-  AMVSum = data$total_mental_health_visits
+  AMVSum = data$total_mental_health_visits,
+  Mean_AMVSUm = data$average_visits_per_month
 )
 
 write.csv(renamed_data, "sim_data.csv", row.names = FALSE)

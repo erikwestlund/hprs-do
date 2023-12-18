@@ -1,18 +1,21 @@
 ---
 title: "Sim Data Analysis"
-format: pdf
+format: html
 ---
 
 
 ```{r}
 library(ggplot2)
 library(dplyr)
+library(pscl)
+library(MASS)
+library(performance)
 
 data <- read.csv("sim_data.csv")
 
 # Mental health visits
 data |> ggplot(aes(x = AMVSum)) +
-  geom_histogram(bins=round(max(data$AMVSum)/2))
+  geom_histogram(bins=round(max(data$AMVSum)/3))
 
 # # By race
 data |> group_by(raceth) |>
@@ -40,15 +43,29 @@ data |> group_by(agecat) |>
   summarize(mean_visits = mean(AMVSum)) |>
   ggplot(aes(x = agecat, y = mean_visits)) +
   geom_bar(stat = "identity") +
-  scale_x_continuous(breaks = c(1,2,3,4,5,6), labels = c(">= 55", "45-54", "35-44", "25-34", "18-24", "< 18"))
+  scale_x_continuous(breaks = c(1,2,3,4,5,6), labels = c(">65", "55-64", "45-54", "35-44", "25-34", "18-24"))
 
 
 # Model example
 
-model1 <- lm(glm(AMVSum ~ factor(genderbinary), family="poisson", data=data))
+model1 <- glm(AMVSum ~ factor(genderbinary), family= poisson(link = "log"), data=data)
 summary(model1)
 
+
+performance::check_overdispersion(model1)
+performance::check_zeroinflation(model1)
+
 exp(model1$coefficients)
+
 ```
 
-Exponentiated gender coefficient (incident rate ratio) should be about 1/1.1 = 0.91.
+We have good reason to believe there will be a lot of zeros in the data, so we will use a zero-inflated model.
+
+We also have a good reason to believe there is overdispersion, so we will use a negative binomial model.
+
+```{r}
+
+model1_nb <- zeroinfl(AMVSum ~ factor(genderbinary) | factor(genderbinary), data=data, dist="negbin")
+
+summary(model1_nb)
+```
