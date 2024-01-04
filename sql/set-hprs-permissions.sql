@@ -1,0 +1,8 @@
+GRANT CONNECT ON DATABASE postgres TO hprs;
+GRANT USAGE ON SCHEMA public TO hprs;
+GRANT ALL ON SCHEMA public TO hprs;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO hprs;
+
+SET search_path TO public;
+ALTER ROLE hprs SET search_path TO public;
+ALTER DEFAULT PRIVILEGES FOR ROLE hprs IN SCHEMA public GRANT ALL ON TABLES TO hprs;

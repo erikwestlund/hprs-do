@@ -12,7 +12,7 @@ library(EnvStats)
 set.seed(123)
 
 # Pick your sample size. 
-n <- 10000
+n <- 3720000
 
 # Function to generate realistic values of key covariates, given race, for one person.
 # race_eth = race/ethnicity code of person
@@ -128,7 +128,6 @@ genPatientCovariates <- function(
   
   # Let's do a simulation where we draw an initial probability of ever attending, aiming at about 2/3 of people attending
   # Then lets simulate by month
-  
   ever_attend_p <- 2/3
   
   # high weights should be more likely, low weights should be less likely, so let's scale the p appropriately
@@ -142,16 +141,13 @@ genPatientCovariates <- function(
 
   # sim visits
   if(ever_attended == 1){
-    
     # sim total visits
     total_mental_health_visits <- rpois(1, total_weight * weight_multiplier) * visit_multiplier
-    
   } else {
     total_mental_health_visits <- 0
   }
   
   average_visits_per_month <- total_mental_health_visits/34
-  
   
   data = tibble(
     "gender" = gender,
@@ -183,7 +179,6 @@ race_eth <- sample(1:7, n, replace = TRUE, prob=c(
 data <- lapply(race_eth, genPatientCovariates, weight_divider = 4.25, visit_multiplier = 25) |> 
   bind_rows() 
 
-
 summary((data |> dplyr::filter(ever_attended == 1) |> dplyr::select(total_mental_health_visits))$total_mental_health_visits)/34
 table(data$total_mental_health_visits)
 hist(data$total_mental_health_visits)
@@ -200,4 +195,3 @@ renamed_data <- tibble(
 )
 
 write.csv(renamed_data, "sim_data.csv", row.names = FALSE)
-
